@@ -794,7 +794,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 window.__threeReady = true;
 
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
-const isMobile = innerWidth < 768 || matchMedia('(pointer: coarse)').matches;
+// align with the CSS single-column breakpoint (max-width:1020px) so cloud placement matches layout
+const isMobile = innerWidth < 1020 || matchMedia('(pointer: coarse)').matches;
 
 /* ─────────── RENDERER / SCENE / CAMERA ─────────── */
 const stage = document.getElementById('stage3d');
@@ -839,7 +840,7 @@ scene.add(starsFar, starsNear);
      HERO→FIST · MISSION→AT THE DESK · STACK→GEAR ·
      ARSENAL→THE COURTHOUSE · MANIFESTO→reclaim() · JOIN→THE PICKET
    ═══════════════════════════════════════════════════════════════ */
-const SAMPLES = isMobile ? 13000 : 26000;
+const SAMPLES = 26000;          // full particle budget on every device (user: keep all particles on mobile)
 const SAMPLE_SCALE = 4.2;      // lab coords (±0.62) → site world units (~5.2 tall)
 
 const cvs = document.createElement('canvas');
@@ -920,7 +921,8 @@ const geo = new THREE.BufferGeometry();
 geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
 geo.setAttribute('color', new THREE.BufferAttribute(colA, 3));
 const mat = new THREE.PointsMaterial({
-  size: isMobile ? .06 : .045, vertexColors: true, transparent: true, opacity: .6,
+  size: isMobile ? .05 : .045, vertexColors: true, transparent: true,
+  opacity: isMobile ? .52 : .6,          // mobile: cloud sits behind single-column text → keep it a faint hologram
   blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true
 });
 const cloud = new THREE.Points(geo, mat); scene.add(cloud);
@@ -999,7 +1001,11 @@ function springStep(dt){
 }
 
 /* ── SCROLL TIMELINE — camera flythrough + cloud track ── */
-const K = [
+/* Desktop: 2-col layout, cloud parked right of the text column.
+   Mobile: single-col layout — cloud CENTERED and scaled to the narrow
+   viewport (wide shapes like THE PICKET 8.65u / reclaim() 9.79u would be
+   badly cropped at phone aspect; camera also pulls back a touch). */
+const K_DESKTOP = [
   { p: 0.00, cam: { p: [0, .7, 8.6], l: [0, 1.2, 0] },  c: { p: [2.6, .7, 0], s: 1.00 } },   // hero — FIST
   { p: 0.16, cam: { p: [1.4, .8, 7.4], l: [.4, 1.1, 0] }, c: { p: [2.4, .8, 0], s: .92 } },   // mission — AT THE DESK
   { p: 0.35, cam: { p: [.2, 1.2, 6.4], l: [0, 1.2, 0] }, c: { p: [2.2, 1.0, 0], s: 1.02 } },  // stack — GEAR
@@ -1007,6 +1013,15 @@ const K = [
   { p: 0.74, cam: { p: [.2, 1.0, 5.6], l: [0, 1.0, 0] },  c: { p: [0, 1.0, 0], s: .85 } },  // manifesto — reclaim() (wide text: center it)
   { p: 1.00, cam: { p: [0, .9, 8.2], l: [0, 1.0, 0] },    c: { p: [2.4, .9, 0], s: .90 } },   // join — THE PICKET
 ];
+const K_MOBILE = [
+  { p: 0.00, cam: { p: [0, .8, 9.4], l: [0, 1.0, 0] },  c: { p: [0, .85, 0], s: .72 } },     // hero — FIST centered
+  { p: 0.16, cam: { p: [0, .9, 8.8], l: [0, 1.0, 0] },  c: { p: [0, .95, 0], s: .62 } },     // mission — AT THE DESK
+  { p: 0.35, cam: { p: [0, 1.1, 8.2], l: [0, 1.1, 0] }, c: { p: [0, 1.05, 0], s: .66 } },    // stack — GEAR
+  { p: 0.52, cam: { p: [0, .95, 7.8], l: [0, 1.0, 0] }, c: { p: [0, .95, 0], s: .7 } },      // arsenal — COURTHOUSE
+  { p: 0.74, cam: { p: [0, 1.0, 7.6], l: [0, 1.0, 0] }, c: { p: [0, .95, 0], s: .42 } },     // manifesto — reclaim() (very wide)
+  { p: 1.00, cam: { p: [0, .95, 9.2], l: [0, 1.0, 0] }, c: { p: [0, .9, 0], s: .5 } },       // join — THE PICKET
+];
+const K = isMobile ? K_MOBILE : K_DESKTOP;
 
 /* post-processing bloom */
 const composer = new EffectComposer(renderer);
@@ -1050,7 +1065,10 @@ window.__pMorph = () => ({
   pending: pendingTarget,
   name: targets[appliedTarget] ? targets[appliedTarget].name : null,
   gatherDone,
-  count: SAMPLES
+  count: SAMPLES,
+  mobile: isMobile,
+  cloudPos: [cloud.position.x, cloud.position.y, cloud.position.z].map(v => +v.toFixed(2)),
+  cloudScale: +cloud.scale.x.toFixed(2)
 });
 
 /* geometry probe: target bbox + settle distance */
@@ -1113,8 +1131,9 @@ function animate(){
 
   /* camera + cloud ride the keyframe timeline */
   if(reduced){
-    camera.position.set(0, .7, 8.6); camera.lookAt(0, 1.2, 0);
-    cloud.position.set(2.6, .7, 0); cloud.scale.setScalar(1);
+    const k0 = K[0];
+    camera.position.set(k0.cam.p[0], k0.cam.p[1], k0.cam.p[2]); camera.lookAt(k0.cam.l[0], k0.cam.l[1], k0.cam.l[2]);
+    cloud.position.set(k0.c.p[0], k0.c.p[1], k0.c.p[2]); cloud.scale.setScalar(k0.c.s);
   } else {
     const p = scrollP;
     let ki = 0;

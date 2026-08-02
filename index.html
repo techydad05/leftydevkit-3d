@@ -794,11 +794,9 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 window.__threeReady = true;
 
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
-const finePointer = matchMedia('(hover: hover) and (pointer: fine)').matches;
 const isMobile = innerWidth < 768 || matchMedia('(pointer: coarse)').matches;
-const body = document.body;
 
-/* ─────────── SCENE ─────────── */
+/* ─────────── RENDERER / SCENE / CAMERA ─────────── */
 const stage = document.getElementById('stage3d');
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, isMobile ? 1.5 : 2));
@@ -814,7 +812,7 @@ scene.fog = new THREE.FogExp2('#050a18', 0.04);
 const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, .1, 220);
 camera.position.set(0, .7, 8.6);
 
-/* stars — faint matte backdrop speckle */
+/* stars — faint backdrop speckle */
 function starLayer(count, size, color, rMin, rMax, opacity){
   const g = new THREE.BufferGeometry();
   const p = new Float32Array(count * 3);
@@ -832,225 +830,182 @@ const starsFar  = starLayer(isMobile ? 500 : 900, .32, 0x9aa7bd, 45, 90, .35);
 const starsNear = starLayer(isMobile ? 250 : 500, .45, 0xc9d6e8, 30, 60, .3);
 scene.add(starsFar, starsNear);
 
-/* ── LIGHTING — matte studio scenes, not neon glow ── */
-scene.add(new THREE.AmbientLight(0x9fb4d8, .65));
-const keyLight = new THREE.DirectionalLight(0xdfeaff, 1.15); keyLight.position.set(5, 7, 6);
-scene.add(keyLight);
-const rimLight = new THREE.DirectionalLight(0x7cc4ff, .55); rimLight.position.set(-5, 3, -5);
-scene.add(rimLight);
-const fillLight = new THREE.DirectionalLight(0x2c3a54, .45); fillLight.position.set(-3, -2, 4);
-scene.add(fillLight);
+/* ═══════════════════════════════════════════════════════════════
+   THE PEOPLE'S CLOUD — pixel-sampled particle morph (lab system)
+   Every particle's home is a pixel of a real brand PNG. On load it
+   gathers from a scattered field into the FIST; as you scroll into
+   each section the home target swaps and the cloud morphs.
+   Targets (order MUST match the sections below):
+     HERO→FIST · MISSION→AT THE DESK · STACK→GEAR ·
+     ARSENAL→THE COURTHOUSE · MANIFESTO→reclaim() · JOIN→THE PICKET
+   ═══════════════════════════════════════════════════════════════ */
+const SAMPLES = isMobile ? 13000 : 26000;
+const SAMPLE_SCALE = 4.2;      // lab coords (±0.62) → site world units (~5.2 tall)
 
-/* ── materials (matte) ── */
-const M_STONE = new THREE.MeshStandardMaterial({ color: 0x9db2d4, roughness: .85, metalness: .05 });
-const M_DEEP  = new THREE.MeshStandardMaterial({ color: 0x3f6ba8, roughness: .6,  metalness: .15 });
-const M_IRON  = new THREE.MeshStandardMaterial({ color: 0x38506e, roughness: .5,  metalness: .55 });
-const M_LITE  = new THREE.MeshStandardMaterial({ color: 0xdcebfa, roughness: .35, metalness: .3 });
-const M_DARK  = new THREE.MeshStandardMaterial({ color: 0x101b2e, roughness: .7,  metalness: .2 });
+const cvs = document.createElement('canvas');
+const ctx = cvs.getContext('2d', { willReadFrequently: true });
 
-/* THE PEOPLE'S FIST — dense particle fist, smooth volumetric (no bloom = no glow) */
-const FIST_HI = [
-  '..............XXX.......................',
-  '.............XXXXXX.....................',
-  '.............XXXXXXX....................',
-  '............XXXXXXXX.XXX................',
-  '............XXXXXXXX.XXXXX..............',
-  '...........XXXXXXXX.XXXXXXX.............',
-  '............XXXXXXX.XXXXXXXX............',
-  '........XXXX..XXXX.XXXXXXXXX............',
-  '.......XXXXXXX...X.XXXXXXXXX.XX.........',
-  '.......XXXXXXXXXX..XXXXXXXX.XXXXX.......',
-  '......XXXXXXXXXXXXXX..XXXX.XXXXXXX......',
-  '.....XXXXXXXXXXXXXXXXX..XX.XXXXXXX......',
-  '.....XXXXXXXXXXXXXXXXXX.X.XXXXXXXXX.....',
-  '....XXXXXXXXXXXXXXXXXXX..XXXXXXXXXX.....',
-  '....XXXXXXXXXXXXXXXXXX...XXXXXXXXX.XX...',
-  '...XXXXXXXXXXXXXXXXXXX..XXXXXXXXX.XXXX..',
-  '..XXXXXXXXXXX.XXXXXX...XXXXXXXXX..XXXXX.',
-  '..XXXXXXXXXX........XX.XXXXXXXXX.XXXXXX.',
-  '.XXXXXXXXXXX....XXXXX.XXXXXXXXX.XXXXXXXX',
-  '.XXXXXXXXXXX....XXXX..XXXXXXXX.XXXXXXXXX',
-  'XXXXXXXXXXXXXX....X..XXXXXXXX..XXXXXXXX.',
-  'XXXXXXXXXXXXXXXX......XXXXXXX.XXXXXXXX..',
-  'XXXXXXXXXXXXXXXXX..X...XXXXX.XXXXXXXX...',
-  '.XXXXXXXXXXXXXXXXX.XXXX..XX.XXXXXXXX..X.',
-  '..XXXXXXXXXXXXXXXXX.XXXXX...XXXXXXX.XXX.',
-  '..XXXXXXXXXXXXXXXXXX.XXXXXX..XXXXX.XXXX.',
-  '...XXXXXXXXXXXXXXXXX..XXXXXX..XXX.XXXXX.',
-  '....XXXXXXXXXXXXXXXXX.XXXXXXXX...XXXXX..',
-  '.....XXXXXXXXXXXXXXXXX.XXXXXXXX.XXXXXX..',
-  '.....XXXXXXXXXXXXXXXXX.XXXXXXXXXXXXXXX..',
-  '......XXXXXXXXXXXXXXXX.XXXXXXXXXXXXXXX..',
-  '.......XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX...',
-  '.......XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX...',
-  '........XXXXXXXXXXXXXXXXXXXXXXXXXXXXX...',
-  '.........XXXXXXXXXXXXXXXXXXXXXXXXXXXX...',
-  '..........XXXXXXXXXXXXXXXXXXXXXXXXXX....',
-  '..........XXXXXXXXXXXXXXXXXXXXXXXXX.....',
-  '...........XXXXXXXXXXXXXXXXXXXXXXXX.....',
-  '............XXXXXXXXXXXXXXXXXXXXXX......',
-  '............XXXXXXXXXXXXXXXXXXXXX.......',
-  '............XXXXXXXXXXXXXXXXXXXXX.......',
-  '............XXXXXXXXXXXXXXXXXXXX........',
-  '............XXXXXXXXXXXXXXXXXXXX........',
-  '...........XXXXXXXXXXXXXXXXXXXXX........',
-  '...........XXXXXXXXXXXXXXXXXXXXX........',
-  '...........XXXXXXXXXXXXXXXXXXXXX........',
-  '...........XXXXXXXXXXXXXXXXXXXXX........',
-  '...........XXXXXXXXXXXXXXXXXXXXX........',
-  '...........XXXXXXXXXXXXXXXXXXXXX........',
-  '...........XXXXXXXXXXXXXXXXXXXXX........',
-  '...........XXXXXXXXXXXXXXXXXXXXX........',
-  '..........XXXXXXXXXXXXXXXXXXXXXX........',
-  '..........XXXXXXXXXXXXXXXXXXXXXX........',
-  '..........XXXXXXXXXXXXXXXXXXXXXX........',
-  '..........XXXXXXXXXXXXXXXXXXXXXX........',
-  '..........XXXXXXXXXXXXXXXXXXXXXX........',
-  '..........XXXXXXXXXXXXXXXXXXXXXX........',
-  '..........XXXXXXXXXXXXXXXXXXXXXXX.......',
-  '.........XXXXXXXXXXXXXXXXXXXXXXXX.......',
-  '.........XXXXXXXXXXXXXXXXXXXXXXXX.......',
-  '.........XXXXXXXXXXXXXXXXXXXXXXXX.......',
-  '.........XXXXXXXXXXXXXXXXXXXXXXXX.......',
-  '.........XXXXXXXXXXXXXXXXXXXXXXXX.......',
-  '.........XXXXXXXXXXXXXXXXXXXXXXXX.......',
-  '.........XXXXXXXXXXXXXXXXXXXXXXXX.......',
-  '.........XXXXXXXXXXXXXXXXXXXXXXXX.......',
-  '........XXXXXXXXXXXXXXXXXXXXXXXXX.......',
-  '........XXXXXXXXXXXXXXXXXXXXXXXXX.......',
-  '........XXXXXXXXXXXXXXXXXXXXXXXXX.......'
-];
-function buildFistPoints(countPerCell){
-  const positions = [];
-  const cell = 5.2 / FIST_HI.length;
-  const w = FIST_HI[0].length;
-  const h = FIST_HI.length;
-  for(let ry = 0; ry < h; ry++){
-    const row = FIST_HI[ry];
-    for(let cx = 0; cx < w; cx++){
-      if(row[cx] !== 'X') continue;
-      for(let k = 0; k < countPerCell; k++){
-        const x = (cx - w/2 + (Math.random() - .5) * .7) * cell;
-        const y = -(ry - h/2 + (Math.random() - .5) * .7) * cell;
-        const z = (Math.random() - .5) * cell * 4.2;
-        positions.push(x, y, z);
-      }
+function sampleImage(img, stride = 2, alphaMin = 40, lumaMin = 0.10){
+  const MAXW = 280;
+  const sc = Math.min(1, MAXW / img.width);
+  const w = Math.max(1, Math.round(img.width * sc)), h = Math.max(1, Math.round(img.height * sc));
+  cvs.width = w; cvs.height = h;
+  ctx.clearRect(0, 0, w, h); ctx.drawImage(img, 0, 0, w, h);
+  const d = ctx.getImageData(0, 0, w, h).data;
+  const pts = [];
+  for(let y = 0; y < h; y += stride){
+    for(let x = 0; x < w; x += stride){
+      const i = (y * w + x) * 4;
+      const a = d[i + 3]; if(a < alphaMin) continue;
+      const r = d[i] / 255, g = d[i + 1] / 255, b = d[i + 2] / 255;
+      if(.299 * r + .587 * g + .114 * b < lumaMin) continue;   // skip near-black bg
+      pts.push({ x: (x / w - .5) * 2, y: -(y / h - .5) * 2, r, g, b });
     }
   }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  return g;
+  const ar = w / h;
+  pts.forEach(p => { p.x *= ar * 0.62 * SAMPLE_SCALE; p.y *= 0.62 * SAMPLE_SCALE; });
+  return pts;
 }
-const fistGeo = buildFistPoints(isMobile ? 3 : 5);
-const fistMat = new THREE.PointsMaterial({ size: isMobile ? .085 : .058, sizeAttenuation: true, color: 0x5b9dff, transparent: true, opacity: .82 });
-const fistGrp = new THREE.Points(fistGeo, fistMat); scene.add(fistGrp);
 
-/* HERO FIST GATHER — particles rain in from across the whole screen once, form the fist, then hold. */
-{
-  const N = fistGeo.attributes.position.count;
-  const src = fistGeo.attributes.position.array;
-  const T_SCATTER = new Float32Array(N * 3);
-  const T_FIST = new Float32Array(src);
-  const SPREAD = 16;                                    // field radius — covers nearly the whole screen
-  for (let i = 0; i < N; i++){
-    const th = Math.random() * Math.PI * 2;
-    const ph = Math.acos(2 * Math.random() - 1);
-    const r = Math.pow(Math.random(), 1 / 3) * SPREAD;
-    T_SCATTER[i*3]   = r * Math.sin(ph) * Math.cos(th);
-    T_SCATTER[i*3+1] = r * Math.sin(ph) * Math.sin(th);
-    T_SCATTER[i*3+2] = r * Math.cos(ph) - 0.5;
+function sampleText(txt){
+  const w = 420, h = 170; cvs.width = w; cvs.height = h;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#fff';
+  ctx.font = '800 76px ui-monospace, Consolas, monospace';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(txt, w / 2, h / 2);
+  const d = ctx.getImageData(0, 0, w, h).data; const pts = [];
+  for(let y = 0; y < h; y += 2) for(let x = 0; x < w; x += 2){
+    const i = (y * w + x) * 4; if(d[i + 3] < 40) continue;
+    pts.push({ x: (x / w - .5) * 2 * (w / h) * 0.55 * SAMPLE_SCALE, y: -(y / h - .5) * 2 * 0.55 * SAMPLE_SCALE, r: .43, g: .66, b: 1 });
   }
-  const cur = new Float32Array(N * 3);
-  for (let i = 0; i < N * 3; i++) cur[i] = T_SCATTER[i];
-  for (let i = 0; i < N * 3; i++) src[i] = cur[i];      // start the fist as the scattered field
-  fistGeo.attributes.position.needsUpdate = true;
-  const DUR = 2.6;                                      // ~2.6s to gather
-  let started = false, t0 = 0;
-  window.__fistGather = function(t){
-    if (!started){ started = true; t0 = t + .15; }
-    let k = Math.max(0, Math.min(1, (t - t0) / DUR));
-    k = k * k * (3 - 2 * k);                            // smoothstep
-    for (let i = 0; i < N * 3; i++) cur[i] = T_SCATTER[i] + (T_FIST[i] - T_SCATTER[i]) * k;
-    for (let i = 0; i < N * 3; i++) src[i] = cur[i];
-    fistGeo.attributes.position.needsUpdate = true;
-  };
-  // reduced-motion: skip the gather, jump straight to fist
-  if (reduced){ for (let i = 0; i < N * 3; i++) src[i] = T_FIST[i]; fistGeo.attributes.position.needsUpdate = true; }
+  return pts;
 }
 
-/* THE COG — matte steel gear */
-function makeCog(){
-  const g = new THREE.Group();
-  g.add(new THREE.Mesh(new THREE.TorusGeometry(1.05, .3, 8, 28), M_IRON));
-  for (let i = 0; i < 8; i++){
-    const a = (i / 8) * Math.PI * 2;
-    const t = new THREE.Mesh(new THREE.BoxGeometry(.5, .5, .34), M_LITE);
-    t.position.set(Math.cos(a) * 1.3, Math.sin(a) * 1.3, 0);
-    t.rotation.z = a;
-    g.add(t);
+// resample a point list to exactly SAMPLES entries (fixed count → any pair morphs 1:1)
+function resample(pts, n){
+  const out = new Float32Array(n * 3), col = new Float32Array(n * 3);
+  if(!pts.length) return { out, col };
+  for(let i = 0; i < n; i++){
+    const p = pts[(Math.random() * pts.length) | 0];
+    const j = Math.random() * Math.PI * 2, rad = Math.random() * 0.006;
+    out[i*3]   = p.x + Math.cos(j) * rad;
+    out[i*3+1] = p.y + Math.sin(j) * rad;
+    out[i*3+2] = (Math.random() - .5) * .02 * SAMPLE_SCALE;
+    // brand-tint: blend sampled colour toward LDK blue range
+    col[i*3]   = p.r * 0.35 + 0.20;
+    col[i*3+1] = p.g * 0.45 + 0.36;
+    col[i*3+2] = p.b * 0.30 + 0.72;
   }
-  g.add(new THREE.Mesh(new THREE.TorusGeometry(.4, .16, 8, 20), M_DARK));
-  return g;
+  return { out, col };
 }
-const cogGrp = makeCog(); scene.add(cogGrp);
 
-/* THE COURTHOUSE — matte civic building (the system we reclaim) */
-function makeBuilding(){
-  const g = new THREE.Group();
-  const step1 = new THREE.Mesh(new THREE.BoxGeometry(3.6, .35, 2.6), M_STONE); step1.position.y = .18;
-  const step2 = new THREE.Mesh(new THREE.BoxGeometry(3.0, .35, 2.2), M_STONE); step2.position.y = .52;
-  g.add(step1, step2);
-  const base = new THREE.Mesh(new THREE.BoxGeometry(2.5, .5, 1.8), M_STONE); base.position.y = .95;
-  g.add(base);
-  const colGeo = new THREE.CylinderGeometry(.17, .2, 1.6, 12);
-  for (let i = 0; i < 4; i++){
-    const col = new THREE.Mesh(colGeo, M_STONE);
-    col.position.set(-.9 + i * .6, 2.0, 0);
-    g.add(col);
+/* particle buffers — start scattered "from all over" (uniform sphere) */
+const pos = new Float32Array(SAMPLES * 3);
+const vel = new Float32Array(SAMPLES * 3);
+const home = new Float32Array(SAMPLES * 3);
+const colA = new Float32Array(SAMPLES * 3);
+const SPREAD = 13;
+for(let i = 0; i < SAMPLES; i++){
+  const th = Math.random() * Math.PI * 2;
+  const ph = Math.acos(2 * Math.random() - 1);
+  const r = Math.pow(Math.random(), 1 / 3) * SPREAD;
+  pos[i*3]   = r * Math.sin(ph) * Math.cos(th);
+  pos[i*3+1] = r * Math.sin(ph) * Math.sin(th);
+  pos[i*3+2] = r * Math.cos(ph) - .5;
+}
+const scatterStart = new Float32Array(pos);     // snapshot for the load gather
+
+const geo = new THREE.BufferGeometry();
+geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+geo.setAttribute('color', new THREE.BufferAttribute(colA, 3));
+const mat = new THREE.PointsMaterial({
+  size: isMobile ? .06 : .045, vertexColors: true, transparent: true, opacity: .6,
+  blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true
+});
+const cloud = new THREE.Points(geo, mat); scene.add(cloud);
+
+function setTarget(pts){
+  const { out, col } = resample(pts, SAMPLES);
+  home.set(out); colA.set(col);
+  geo.attributes.color.needsUpdate = true;
+}
+
+/* ---------- load sources (order = section order) ---------- */
+const loader = new THREE.TextureLoader();
+function loadImg(src){
+  return new Promise((res, rej) => {
+    const im = new Image(); im.crossOrigin = 'anonymous';
+    im.onload = () => res(im); im.onerror = () => rej(new Error('load fail ' + src)); im.src = src;
+  });
+}
+const targets = [];
+const report = {};
+async function addImageTarget(name, src, alphaMin){
+  try{
+    const im = await loadImg(src);
+    const p = sampleImage(im, 2, alphaMin, 0.10);
+    targets.push({ name, pts: p }); report[name] = p.length;
+  }catch(e){ report[name] = 'ERR ' + e.message; }
+}
+async function buildTargets(){
+  await addImageTarget('FIST',           'assets/fist.png',       40);
+  await addImageTarget('AT THE DESK',    'assets/desk.png',       0);   // RGB, no alpha
+  await addImageTarget('GEAR',           'assets/gear.png',       0);   // RGB, no alpha
+  await addImageTarget('THE COURTHOUSE', 'assets/courthouse.png', 0);   // RGB, no alpha
+  targets.push({ name: 'reclaim()', pts: sampleText('reclaim()') });
+  report['reclaim()'] = targets[targets.length - 1].pts.length;
+  await addImageTarget('THE PICKET',     'assets/protest.png',    0);   // RGB, no alpha
+  if(targets.length) setTarget(targets[0].pts);       // home = FIST
+  if(reduced){
+    for(let i = 0; i < SAMPLES * 3; i++) pos[i] = home[i];   // reduced: jump straight to fist
+    geo.attributes.position.needsUpdate = true;
   }
-  const beam = new THREE.Mesh(new THREE.BoxGeometry(2.9, .3, 2.0), M_STONE); beam.position.y = 2.9;
-  g.add(beam);
-  const ped = new THREE.Mesh(new THREE.ConeGeometry(1.45, .7, 3), M_DEEP);
-  ped.position.y = 3.4; ped.rotation.y = Math.PI / 3;
-  g.add(ped);
-  return g;
+  console.log('PARTICLE_MORPH ' + JSON.stringify({ targets: targets.map(t => t.name), counts: report, SAMPLES }));
 }
-const buildingGrp = makeBuilding(); buildingGrp.rotation.y = Math.PI * .12; scene.add(buildingGrp);
 
-/* THE LAPTOP — matte rig with a lit code screen (built in public) */
-function makeLaptop(){
-  const g = new THREE.Group();
-  const metal = new THREE.MeshStandardMaterial({ color: 0x2a3a52, roughness: .4, metalness: .6 });
-  const base = new THREE.Mesh(new THREE.BoxGeometry(1.9, .1, 1.2), metal);
-  base.position.y = -.05; g.add(base);
-  const screen = new THREE.Group(); screen.position.set(0, .05, -.46); screen.rotation.x = -.34;
-  const frame = new THREE.Mesh(new THREE.BoxGeometry(1.75, 1.15, .06), metal);
-  frame.position.y = .55; screen.add(frame);
-  const disp = new THREE.Mesh(new THREE.PlaneGeometry(1.55, .98),
-    new THREE.MeshStandardMaterial({ color: 0x0b1420, emissive: 0x6fb7ff, emissiveIntensity: .9, side: THREE.DoubleSide }));
-  disp.position.set(0, .55, .045); screen.add(disp);
-  const bar = new THREE.Mesh(new THREE.BoxGeometry(.34, .05, .01),
-    new THREE.MeshBasicMaterial({ color: 0xeaf6ff }));
-  bar.position.set(-.12, .4, .052); screen.add(bar);
-  g.add(screen);
-  return g;
+/* ---------- load gather (the approved sequence: scatter → once → hold) ---------- */
+const GATHER_DUR = 2.6;
+let gatherStarted = false, gT0 = 0, gatherDone = false;
+function updateGather(t){
+  if(!gatherStarted){ gatherStarted = true; gT0 = t + .15; }
+  const k = Math.max(0, Math.min(1, (t - gT0) / GATHER_DUR));
+  const s = k * k * (3 - 2 * k);                        // smoothstep
+  const P = geo.attributes.position.array;
+  for(let i = 0; i < SAMPLES * 3; i++) P[i] = scatterStart[i] + (home[i] - scatterStart[i]) * s;
+  geo.attributes.position.needsUpdate = true;
+  if(k >= 1) gatherDone = true;
 }
-const laptopGrp = makeLaptop(); scene.add(laptopGrp);
 
-/* ── SCROLL TIMELINE — camera + object keyframes aligned to section scroll positions ── */
+/* ---------- spring toward home (lab physics, no cursor scatter) ---------- */
+/* Lab spring constants are tuned for FRAME-normalized dt (16.67ms = 1),
+   but THREE.Clock.getDelta() returns SECONDS (~0.016). Convert back or
+   the spring runs ~60x weak and the morph crawls (meanDist stuck ~1.7).
+   The fraction-of-remaining-distance per frame is scale-invariant, so the
+   lab's raw 0.022/0.90 constants apply regardless of SAMPLE_SCALE. */
+const SPRING_K = 0.022, SPRING_DAMP = 0.90;
+function springStep(dt){
+  const f = Math.min(dt * 60, 3);                  // frame-normalized (like the lab's dt cap)
+  const P = geo.attributes.position.array;
+  for(let i = 0; i < SAMPLES; i++){
+    const ix = i * 3, iy = ix + 1, iz = ix + 2;
+    vel[ix] += (home[ix] - P[ix]) * SPRING_K * f;
+    vel[iy] += (home[iy] - P[iy]) * SPRING_K * f;
+    vel[iz] += (home[iz] - P[iz]) * SPRING_K * f;
+    vel[ix] *= SPRING_DAMP; vel[iy] *= SPRING_DAMP; vel[iz] *= SPRING_DAMP;
+    P[ix] += vel[ix] * f; P[iy] += vel[iy] * f; P[iz] += vel[iz] * f;
+  }
+  geo.attributes.position.needsUpdate = true;
+}
+
+/* ── SCROLL TIMELINE — camera flythrough + cloud track ── */
 const K = [
-  { p:0.00, cam:{ p:[0,.5,7.5], l:[0,1.2,0] },                     /* hero — the fist */
-    o:{ fist:{p:[2.9,.6,0],s:1}, cog:{p:[-6,-1,-5],s:.001}, bld:{p:[-7,-1.5,-6],s:.001}, lap:{p:[-7,1,-6],s:.001} } },
-  { p:0.16, cam:{ p:[2.0,.8,6.4], l:[-1.5,.2,-1] },                /* mission — cog arrives */
-    o:{ fist:{p:[6,-1,-4],s:.38}, cog:{p:[-1.3,.3,0],s:1.0}, bld:{p:[-7,-1.5,-6],s:.001}, lap:{p:[-6.5,1,-6],s:.001} } },
-  { p:0.35, cam:{ p:[.3,.7,5.0], l:[0,1.6,0] },                    /* stack — cog */
-    o:{ fist:{p:[5,-2,-5],s:.26}, cog:{p:[0,1.4,0],s:1.4}, bld:{p:[-6.5,-.5,-5],s:.001}, lap:{p:[5.5,2,-5],s:.001} } },
-  { p:0.52, cam:{ p:[.4,.9,3.9], l:[0,2.1,-1] },                   /* arsenal — fly into the courthouse */
-    o:{ fist:{p:[5.5,-2,-5],s:.26}, cog:{p:[3.5,-1.5,-3],s:.25}, bld:{p:[0,1.05,-.6],s:1.45}, lap:{p:[-6,1,-5],s:.001} } },
-  { p:0.74, cam:{ p:[.5,1.0,3.6], l:[-1.9,.95,-.3] },              /* manifesto — fly into the laptop */
-    o:{ fist:{p:[5,2,-4],s:.3}, cog:{p:[5,-2,-4],s:.25}, bld:{p:[5.5,-1.5,-5],s:.3}, lap:{p:[-1.7,.95,-.3],s:1.5} } },
-  { p:1.00, cam:{ p:[0,1.4,8.0], l:[0,1.2,0] },                    /* join — all spread */
-    o:{ fist:{p:[2.6,.4,1.5],s:.7}, cog:{p:[-4,-.5,-2],s:.45}, bld:{p:[4,-.6,-1.5],s:.5}, lap:{p:[-3,1.4,-.5],s:.5} } },
+  { p: 0.00, cam: { p: [0, .7, 8.6], l: [0, 1.2, 0] },  c: { p: [2.6, .7, 0], s: 1.00 } },   // hero — FIST
+  { p: 0.16, cam: { p: [1.4, .8, 7.4], l: [.4, 1.1, 0] }, c: { p: [2.4, .8, 0], s: .92 } },   // mission — AT THE DESK
+  { p: 0.35, cam: { p: [.2, 1.2, 6.4], l: [0, 1.2, 0] }, c: { p: [2.2, 1.0, 0], s: 1.02 } },  // stack — GEAR
+  { p: 0.52, cam: { p: [-1.2, .9, 6.0], l: [.5, 1.1, 0] }, c: { p: [2.4, .9, 0], s: 1.06 } }, // arsenal — COURTHOUSE
+  { p: 0.74, cam: { p: [.2, 1.0, 5.6], l: [0, 1.0, 0] },  c: { p: [0, 1.0, 0], s: .85 } },  // manifesto — reclaim() (wide text: center it)
+  { p: 1.00, cam: { p: [0, .9, 8.2], l: [0, 1.0, 0] },    c: { p: [2.4, .9, 0], s: .90 } },   // join — THE PICKET
 ];
 
 /* post-processing bloom */
@@ -1062,7 +1017,6 @@ composer.addPass(new OutputPass());
 
 /* ─────────── INTERACTION STATE ─────────── */
 const mouse = { x: 0, y: 0 };
-const cam = { x: 0, y: .7 };
 let scrollP = 0, targetScrollP = 0;
 let clock = new THREE.Clock();
 let running = true;
@@ -1072,11 +1026,57 @@ addEventListener('mousemove', e => {
   mouse.y = (e.clientY / innerHeight) * 2 - 1;
 }, { passive: true });
 
+/* section detection — which section owns the viewport right now */
+const SECTION_IDS = ['hero', 'mission', 'stack', 'arsenal', 'manifesto', 'join'];
+function sectionTriggerY(){
+  const doc = document.documentElement;
+  return Math.max(1, doc.scrollHeight - innerHeight);
+}
+function activeSectionIdx(){
+  const max = sectionTriggerY();
+  const y = scrollY + innerHeight * .45;              // section counts once its top passes 45% up
+  let idx = 0;
+  for(let i = 0; i < SECTION_IDS.length; i++){
+    const el = document.getElementById(SECTION_IDS[i]);
+    if(el && el.offsetTop <= y) idx = i;
+  }
+  return idx;
+}
+let pendingTarget = 0, appliedTarget = 0;
+
+/* verification hook (console-accessible) */
+window.__pMorph = () => ({
+  applied: appliedTarget,
+  pending: pendingTarget,
+  name: targets[appliedTarget] ? targets[appliedTarget].name : null,
+  gatherDone,
+  count: SAMPLES
+});
+
+/* geometry probe: target bbox + settle distance */
+window.__pGeom = () => {
+  const P = geo.attributes.position.array;
+  let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9, sumD = 0;
+  for(let i = 0; i < SAMPLES; i++){
+    const ix = i * 3, iy = ix + 1;
+    if(home[ix] < minX) minX = home[ix]; if(home[ix] > maxX) maxX = home[ix];
+    if(home[iy] < minY) minY = home[iy]; if(home[iy] > maxY) maxY = home[iy];
+    sumD += Math.hypot(P[ix] - home[ix], P[iy] - home[iy]);
+  }
+  return {
+    target: targets[appliedTarget] ? targets[appliedTarget].name : null,
+    bbox: { w: +(maxX - minX).toFixed(2), h: +(maxY - minY).toFixed(2) },
+    meanDistToHome: +(sumD / SAMPLES).toFixed(3)
+  };
+};
+
 addEventListener('scroll', () => {
   const max = Math.max(1, document.documentElement.scrollHeight - innerHeight);
   targetScrollP = Math.min(1, Math.max(0, scrollY / max));
   const prog = document.getElementById('scrollprog');
   prog.style.width = (targetScrollP * 100) + '%';
+  const idx = activeSectionIdx();
+  if(idx !== pendingTarget) pendingTarget = idx;
 }, { passive: true });
 
 addEventListener('resize', () => {
@@ -1088,69 +1088,52 @@ addEventListener('resize', () => {
 
 document.addEventListener('visibilitychange', () => {
   running = !document.hidden;
-  if (running) clock = new THREE.Clock();
+  if(running) clock = new THREE.Clock();
 });
 
 /* ─────────── ANIMATE ─────────── */
 function animate(){
-  if (!running) return;
+  if(!running) return;
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), .05);
   const t = clock.elapsedTime;
 
-  // smooth scroll drive (lerp)
-  scrollP += (targetScrollP - scrollP) * .06;
+  scrollP += (targetScrollP - scrollP) * .06;         // smooth scroll drive
 
-  // drive the hero-fist shape morph (grow from nothing -> fist -> cog -> fist)
-  if (window.__fistGather && !reduced) window.__fistGather(t);
+  if(!reduced){
+    if(!gatherDone) updateGather(t);                   // load: scatter → fist → hold
+    else{
+      if(pendingTarget !== appliedTarget){             // scroll into a section → morph
+        appliedTarget = pendingTarget;
+        if(targets[appliedTarget]) setTarget(targets[appliedTarget].pts);
+      }
+      springStep(dt);                                  // springs carry the morph
+    }
+  }
 
-  /* ── SCROLL FLYTHROUGH — camera + the four matte civic objects ride a keyframe timeline ── */
-  function setP(g, v, s){ g.position.set(v[0], v[1], v[2]); g.scale.setScalar(s || .001); }
-
-  if (reduced){
-    camera.position.set(0, .5, 7.5); camera.lookAt(0, 1.2, 0);
-    fistGrp.position.set(2.9, .6, 0); fistGrp.rotation.y = 0; fistGrp.scale.setScalar(1);    setP(cogGrp, [-6, -1, -5]); setP(buildingGrp, [-7, -1.5, -6]); setP(laptopGrp, [-7, 1, -6]);
+  /* camera + cloud ride the keyframe timeline */
+  if(reduced){
+    camera.position.set(0, .7, 8.6); camera.lookAt(0, 1.2, 0);
+    cloud.position.set(2.6, .7, 0); cloud.scale.setScalar(1);
   } else {
     const p = scrollP;
     let ki = 0;
-    for (let i = 0; i < K.length - 1; i++) if (p >= K[i].p) ki = i;
+    for(let i = 0; i < K.length - 1; i++) if(p >= K[i].p) ki = i;
     const a = K[ki], b = K[ki + 1];
     const f = Math.min(1, Math.max(0, (p - a.p) / (b.p - a.p)));
-    const s = f * f * (3 - 2 * f); // smoothstep
+    const s = f * f * (3 - 2 * f);
     const lerp = (u, v) => u + (v - u) * s;
-    const lerpV = (u, v) => [ lerp(u[0], v[0]), lerp(u[1], v[1]), lerp(u[2], v[2]) ];
+    const lerpV = (u, v) => [lerp(u[0], v[0]), lerp(u[1], v[1]), lerp(u[2], v[2])];
 
-    // camera (plus a whisper of mouse parallax)
     const cp = lerpV(a.cam.p, b.cam.p), cl = lerpV(a.cam.l, b.cam.l);
     camera.position.set(cp[0] + mouse.x * .3, cp[1] - mouse.y * .2, cp[2]);
     camera.lookAt(cl[0], cl[1], cl[2]);
 
-    // the fists (hero / manifesto) — straight-on to camera (no sideways sway/rotation)
-    const fk = a.o.fist, ft = b.o.fist;
-    fistGrp.position.set(lerp(fk.p[0], ft.p[0]), lerp(fk.p[1], ft.p[1]), lerp(fk.p[2], ft.p[2]));
-    fistGrp.rotation.y = 0;                             // face the camera straight-on
-    fistGrp.scale.setScalar(lerp(fk.s, ft.s));
-
-    // the cog (machine / stack) — turns in place
-    const ck = a.o.cog, ct = b.o.cog;
-    cogGrp.position.set(lerp(ck.p[0], ct.p[0]), lerp(ck.p[1], ct.p[1]), lerp(ck.p[2], ct.p[2]));
-    cogGrp.scale.setScalar(Math.max(.001, lerp(ck.s, ct.s)));
-    cogGrp.rotation.z += dt * .5;
-
-    // the courthouse — slow float
-    const bk = a.o.bld, bt = b.o.bld;
-    buildingGrp.position.set(lerp(bk.p[0], bt.p[0]), lerp(bk.p[1], bt.p[1]) + Math.sin(t * .4) * .06, lerp(bk.p[2], bt.p[2]));
-    buildingGrp.scale.setScalar(Math.max(.001, lerp(bk.s, bt.s)));
-    buildingGrp.rotation.y = Math.PI * .12 + Math.sin(t * .12) * .04;
-
-    // the laptop — gentle sway, lit screen toward camera
-    const lk = a.o.lap, lt = b.o.lap;
-    laptopGrp.position.set(lerp(lk.p[0], lt.p[0]), lerp(lk.p[1], lt.p[1]), lerp(lk.p[2], lt.p[2]));
-    laptopGrp.scale.setScalar(Math.max(.001, lerp(lk.s, lt.s)));
-    laptopGrp.rotation.y = Math.sin(t * .3) * .14;
+    const ck = a.c, ct = b.c;
+    cloud.position.set(lerp(ck.p[0], ct.p[0]), lerp(ck.p[1], ct.p[1]), lerp(ck.p[2], ct.p[2]));
+    cloud.scale.setScalar(lerp(ck.s, ct.s));
   }
 
-  // faint star drift
   starsNear.rotation.y += dt * .006;
   starsFar.rotation.y -= dt * .003;
 
@@ -1159,32 +1142,36 @@ function animate(){
 animate();
 
 /* ─────────── REDUCED MOTION: still render one frame ─────────── */
-if (reduced){ setTimeout(() => composer.render(), 60); }
+if(reduced){ setTimeout(() => composer.render(), 60); }
 
 /* ─────────── 2D FALLBACK if module/WebGL failed ─────────── */
 setTimeout(() => {
-  if (!window.__threeReady){
+  if(!window.__threeReady){
     const fb = document.getElementById('fallback2d');
     fb.style.display = 'block';
-    const ctx = fb.getContext('2d');
+    const ctx2 = fb.getContext('2d');
     fb.width = innerWidth; fb.height = innerHeight;
     const N = 240, pts = [];
     for(let i = 0; i < N; i++){
       pts.push({ x: Math.random()*fb.width, y: Math.random()*fb.height, r: Math.random()*1.4+.3, s: .15+Math.random()*.4, c: Math.random()<.3 ? '59,166,242' : '242,240,236' });
     }
     (function fbLoop(){
-      ctx.fillStyle = 'rgba(5,10,24,.25)';
-      ctx.fillRect(0,0,fb.width,fb.height);
+      ctx2.fillStyle = 'rgba(5,10,24,.25)';
+      ctx2.fillRect(0,0,fb.width,fb.height);
       for(const p of pts){
-        p.y -= p.s; if (p.y < -2) { p.y = fb.height + 2; p.x = Math.random()*fb.width; }
-        ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
-        ctx.fillStyle = `rgba(${p.c},.85)`; ctx.fill();
+        p.y -= p.s; if(p.y < -2){ p.y = fb.height + 2; p.x = Math.random()*fb.width; }
+        ctx2.beginPath(); ctx2.arc(p.x,p.y,p.r,0,Math.PI*2);
+        ctx2.fillStyle = `rgba(${p.c},.85)`; ctx2.fill();
       }
       requestAnimationFrame(fbLoop);
     })();
   }
 }, 3000);
+
+buildTargets();
 </script>
+
+
 
 <!-- classic interactions (no module deps — safe if CDN fails) -->
 <script>

@@ -55,6 +55,12 @@ body{
   -webkit-font-smoothing:antialiased;
   padding-bottom:56px; /* room for the fixed bottom ticker */
 }
+/* overflow safety net: never allow horizontal scroll (laptop/kb/grain can't push the page) */
+html{overflow-x:hidden;overflow-x:clip}
+/* grid children must be allowed to shrink below their content's intrinsic width */
+.wrap > *,section > *{min-width:0}
+/* long mono / code lines wrap instead of blowing out the layout */
+.mono,pre,code{overflow-wrap:anywhere;word-break:break-word}
 ::selection{background:var(--blue);color:var(--ink)}
 a{color:inherit;text-decoration:none}
 button{font-family:inherit;color:inherit;background:none;border:none;cursor:pointer}
@@ -434,11 +440,31 @@ body.fight #fightflash{animation:fflash .5s}
   .hero-grid{grid-template-columns:1fr}
   .counter-panel{margin-left:0;margin-top:30px}
   .hero-scrollhint{display:none}
+  /* shrink the laptop/terminal so it fits single-column mobile layouts */
+  .laptop{margin-top:24px}
+  .term-body{min-height:0;max-height:340px;padding:16px 16px 20px;font-size:12px;line-height:1.75}
+  .term-bar{padding:10px 14px}
+  .laptop-base{height:58px;margin-top:7px}
+  .laptop-base::before{width:130px;height:26px;bottom:7px}
+  .kb{flex-wrap:wrap;max-width:280px;gap:4px;margin-top:-6px}
+  .kb i{width:13px;height:13px}
 }
 @media (max-width:560px){
   .stat-grid{grid-template-columns:1fr 1fr}
   .card-grid{grid-template-columns:1fr}
   .live-pill{display:none}
+  /* compact terminal on phones */
+  .laptop-lid .term{border-radius:10px 10px 2px 2px}
+  .term-bar{padding:8px 10px;gap:6px}
+  .term-bar i{width:9px;height:9px}
+  .term-bar .tt{font-size:9.5px;margin-left:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .term-body{padding:12px 12px 16px;font-size:11px;line-height:1.7;min-height:0;max-height:300px}
+  .term-cmds{padding:10px 10px;gap:7px}
+  .tcmd{font-size:10px;padding:6px 9px}
+  .laptop-base{height:44px;margin-top:6px;border-radius:8px 8px 14px 14px}
+  .laptop-base::before{width:92px;height:18px;bottom:5px;border-radius:6px}
+  .kb{max-width:200px;gap:3px;margin-top:-4px}
+  .kb i{width:9px;height:9px;border-radius:2px}
 }
 </style>
 </head>
@@ -903,7 +929,6 @@ function resample(pts, n){
 
 /* particle buffers — start scattered "from all over" (uniform sphere) */
 const pos = new Float32Array(SAMPLES * 3);
-const vel = new Float32Array(SAMPLES * 3);
 const home = new Float32Array(SAMPLES * 3);
 const colA = new Float32Array(SAMPLES * 3);
 const SPREAD = 13;
@@ -926,6 +951,9 @@ const mat = new THREE.PointsMaterial({
   blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true
 });
 const cloud = new THREE.Points(geo, mat); scene.add(cloud);
+
+let TARGET_ARRAYS = [];      // one pre-resampled Float32Array per shape (built at load)
+let curTargets = null;       // {a, b, s} of the active scroll band (for the debug hook)
 
 function setTarget(pts){
   const { out, col } = resample(pts, SAMPLES);
@@ -958,7 +986,13 @@ async function buildTargets(){
   targets.push({ name: 'reclaim()', pts: sampleText('reclaim()') });
   report['reclaim()'] = targets[targets.length - 1].pts.length;
   await addImageTarget('THE PICKET',     'assets/protest.png',    0);   // RGB, no alpha
-  if(targets.length) setTarget(targets[0].pts);       // home = FIST
+  /* pre-resample every target to SAMPLES → scroll-morph lerps between
+     adjacent arrays 1:1 with zero allocation per frame */
+  TARGET_ARRAYS = targets.map(t => resample(t.pts, SAMPLES).out);
+  if(targets.length){
+    setTarget(targets[0].pts);      // colors for the fist
+    home.set(TARGET_ARRAYS[0]);     // home = the SAME array the scroll-morph starts at (no pop)
+  }
   if(reduced){
     for(let i = 0; i < SAMPLES * 3; i++) pos[i] = home[i];   // reduced: jump straight to fist
     geo.attributes.position.needsUpdate = true;
@@ -980,26 +1014,6 @@ function updateGather(t){
 }
 
 /* ---------- spring toward home (lab physics, no cursor scatter) ---------- */
-/* Lab spring constants are tuned for FRAME-normalized dt (16.67ms = 1),
-   but THREE.Clock.getDelta() returns SECONDS (~0.016). Convert back or
-   the spring runs ~60x weak and the morph crawls (meanDist stuck ~1.7).
-   The fraction-of-remaining-distance per frame is scale-invariant, so the
-   lab's raw 0.022/0.90 constants apply regardless of SAMPLE_SCALE. */
-const SPRING_K = 0.022, SPRING_DAMP = 0.90;
-function springStep(dt){
-  const f = Math.min(dt * 60, 3);                  // frame-normalized (like the lab's dt cap)
-  const P = geo.attributes.position.array;
-  for(let i = 0; i < SAMPLES; i++){
-    const ix = i * 3, iy = ix + 1, iz = ix + 2;
-    vel[ix] += (home[ix] - P[ix]) * SPRING_K * f;
-    vel[iy] += (home[iy] - P[iy]) * SPRING_K * f;
-    vel[iz] += (home[iz] - P[iz]) * SPRING_K * f;
-    vel[ix] *= SPRING_DAMP; vel[iy] *= SPRING_DAMP; vel[iz] *= SPRING_DAMP;
-    P[ix] += vel[ix] * f; P[iy] += vel[iy] * f; P[iz] += vel[iz] * f;
-  }
-  geo.attributes.position.needsUpdate = true;
-}
-
 /* ── SCROLL TIMELINE — camera flythrough + cloud track ── */
 /* Desktop: 2-col layout, cloud parked right of the text column.
    Mobile: single-col layout — cloud CENTERED and scaled to the narrow
@@ -1041,50 +1055,34 @@ addEventListener('mousemove', e => {
   mouse.y = (e.clientY / innerHeight) * 2 - 1;
 }, { passive: true });
 
-/* section detection — which section owns the viewport right now */
-const SECTION_IDS = ['hero', 'mission', 'stack', 'arsenal', 'manifesto', 'join'];
-function sectionTriggerY(){
-  const doc = document.documentElement;
-  return Math.max(1, doc.scrollHeight - innerHeight);
-}
-function activeSectionIdx(){
-  const max = sectionTriggerY();
-  const y = scrollY + innerHeight * .45;              // section counts once its top passes 45% up
-  let idx = 0;
-  for(let i = 0; i < SECTION_IDS.length; i++){
-    const el = document.getElementById(SECTION_IDS[i]);
-    if(el && el.offsetTop <= y) idx = i;
-  }
-  return idx;
-}
-let pendingTarget = 0, appliedTarget = 0;
+/* ── SCROLL MORPH — scroll position IS the morph knob ──
+   No section detection, no spring. The K keyframe band (ki, s) that drives
+   the camera ALSO drives the particle shape: at band progress s the cloud is
+   exactly lerp(TARGET_ARRAYS[ki], TARGET_ARRAYS[ki+1], s). Scroll forward =
+   scatter/reassemble in sync; scroll back = it reverses. */
 
 /* verification hook (console-accessible) */
 window.__pMorph = () => ({
-  applied: appliedTarget,
-  pending: pendingTarget,
-  name: targets[appliedTarget] ? targets[appliedTarget].name : null,
+  band: curTargets ? { from: curTargets.a, to: curTargets.b, s: +curTargets.s.toFixed(3) } : null,
   gatherDone,
   count: SAMPLES,
   mobile: isMobile,
+  scrollP: +scrollP.toFixed(3),
   cloudPos: [cloud.position.x, cloud.position.y, cloud.position.z].map(v => +v.toFixed(2)),
   cloudScale: +cloud.scale.x.toFixed(2)
 });
 
-/* geometry probe: target bbox + settle distance */
+/* geometry probe: current position bbox */
 window.__pGeom = () => {
   const P = geo.attributes.position.array;
-  let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9, sumD = 0;
+  let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
   for(let i = 0; i < SAMPLES; i++){
     const ix = i * 3, iy = ix + 1;
-    if(home[ix] < minX) minX = home[ix]; if(home[ix] > maxX) maxX = home[ix];
-    if(home[iy] < minY) minY = home[iy]; if(home[iy] > maxY) maxY = home[iy];
-    sumD += Math.hypot(P[ix] - home[ix], P[iy] - home[iy]);
+    if(P[ix] < minX) minX = P[ix]; if(P[ix] > maxX) maxX = P[ix];
+    if(P[iy] < minY) minY = P[iy]; if(P[iy] > maxY) maxY = P[iy];
   }
   return {
-    target: targets[appliedTarget] ? targets[appliedTarget].name : null,
-    bbox: { w: +(maxX - minX).toFixed(2), h: +(maxY - minY).toFixed(2) },
-    meanDistToHome: +(sumD / SAMPLES).toFixed(3)
+    bbox: { w: +(maxX - minX).toFixed(2), h: +(maxY - minY).toFixed(2) }
   };
 };
 
@@ -1093,8 +1091,6 @@ addEventListener('scroll', () => {
   targetScrollP = Math.min(1, Math.max(0, scrollY / max));
   const prog = document.getElementById('scrollprog');
   prog.style.width = (targetScrollP * 100) + '%';
-  const idx = activeSectionIdx();
-  if(idx !== pendingTarget) pendingTarget = idx;
 }, { passive: true });
 
 addEventListener('resize', () => {
@@ -1118,15 +1114,22 @@ function animate(){
 
   scrollP += (targetScrollP - scrollP) * .06;         // smooth scroll drive
 
-  if(!reduced){
-    if(!gatherDone) updateGather(t);                   // load: scatter → fist → hold
-    else{
-      if(pendingTarget !== appliedTarget){             // scroll into a section → morph
-        appliedTarget = pendingTarget;
-        if(targets[appliedTarget]) setTarget(targets[appliedTarget].pts);
-      }
-      springStep(dt);                                  // springs carry the morph
-    }
+  /* resolve the K band once — camera AND particle morph share it */
+  let ki = 0, s = 0;
+  if(!reduced && !gatherDone){
+    updateGather(t);                                   // load: scatter → fist → hold
+  } else if(!reduced && TARGET_ARRAYS.length){
+    const p = scrollP;
+    for(let i = 0; i < K.length - 1; i++) if(p >= K[i].p) ki = i;
+    const a = K[ki], b = K[ki + 1];
+    const f = Math.min(1, Math.max(0, (p - a.p) / (b.p - a.p)));
+    s = f * f * (3 - 2 * f);                           // smoothstep — the morph knob
+    /* scroll-morph: cloud = lerp(shape[ki], shape[ki+1], s) — reversible, in sync */
+    const A = TARGET_ARRAYS[ki], B = TARGET_ARRAYS[ki + 1];
+    const P = geo.attributes.position.array;
+    for(let i = 0; i < SAMPLES * 3; i++) P[i] = A[i] + (B[i] - A[i]) * s;
+    geo.attributes.position.needsUpdate = true;
+    curTargets = { a: targets[ki].name, b: targets[ki + 1].name, s };
   }
 
   /* camera + cloud ride the keyframe timeline */
@@ -1136,19 +1139,14 @@ function animate(){
     cloud.position.set(k0.c.p[0], k0.c.p[1], k0.c.p[2]); cloud.scale.setScalar(k0.c.s);
   } else {
     const p = scrollP;
-    let ki = 0;
-    for(let i = 0; i < K.length - 1; i++) if(p >= K[i].p) ki = i;
-    const a = K[ki], b = K[ki + 1];
-    const f = Math.min(1, Math.max(0, (p - a.p) / (b.p - a.p)));
-    const s = f * f * (3 - 2 * f);
     const lerp = (u, v) => u + (v - u) * s;
     const lerpV = (u, v) => [lerp(u[0], v[0]), lerp(u[1], v[1]), lerp(u[2], v[2])];
 
-    const cp = lerpV(a.cam.p, b.cam.p), cl = lerpV(a.cam.l, b.cam.l);
+    const cp = lerpV(K[ki].cam.p, K[ki + 1].cam.p), cl = lerpV(K[ki].cam.l, K[ki + 1].cam.l);
     camera.position.set(cp[0] + mouse.x * .3, cp[1] - mouse.y * .2, cp[2]);
     camera.lookAt(cl[0], cl[1], cl[2]);
 
-    const ck = a.c, ct = b.c;
+    const ck = K[ki].c, ct = K[ki + 1].c;
     cloud.position.set(lerp(ck.p[0], ct.p[0]), lerp(ck.p[1], ct.p[1]), lerp(ck.p[2], ct.p[2]));
     cloud.scale.setScalar(lerp(ck.s, ct.s));
   }

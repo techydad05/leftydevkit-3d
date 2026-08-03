@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LeftyDevKit — Lab Index</title>
+<style>
+:root{--navy:#050a18;--blue:#2f6fff;--blue-lt:#6ea8ff;--ink:#e8eefc;--dim:#93a4c8;--line:#1b2949;
+--mono:ui-monospace,"Cascadia Code",Consolas,monospace}
+*{box-sizing:border-box}
+body{margin:0;background:var(--navy);color:var(--ink);
+  font-family:system-ui,Segoe UI,sans-serif;line-height:1.6;
+  background-image:radial-gradient(circle at 20% 0%,#0c1830 0%,transparent 55%);}
+.wrap{max-width:940px;margin:0 auto;padding:3rem 1.4rem 5rem}
+h1{font-size:clamp(1.8rem,5vw,2.8rem);margin:0;letter-spacing:-.03em}
+.tag{font-family:var(--mono);color:var(--blue-lt);font-size:.85rem;margin-top:.4rem}
+.lede{color:var(--dim);max-width:64ch;margin:1rem 0 2.4rem}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:1rem}
+@media(max-width:880px){.grid{grid-template-columns:1fr}}
+a.card{display:block;text-decoration:none;color:inherit;
+  background:#0a132a;border:1px solid var(--line);border-radius:14px;padding:1.2rem 1.3rem;
+  transition:.2s;position:relative;overflow:hidden}
+a.card:hover{border-color:var(--blue);transform:translateY(-3px);
+  box-shadow:0 12px 34px -14px rgba(47,111,255,.6)}
+a.card::after{content:"";position:absolute;inset:0;
+  background:linear-gradient(120deg,transparent 40%,rgba(47,111,255,.09));opacity:0;transition:.2s}
+a.card:hover::after{opacity:1}
+.n{font-family:var(--mono);font-size:.7rem;color:var(--blue);letter-spacing:.2em}
+h2{margin:.35rem 0 .5rem;font-size:1.18rem;letter-spacing:-.01em}
+p.d{margin:0;color:var(--dim);font-size:.88rem}
+.meta{margin-top:.85rem;font-family:var(--mono);font-size:.68rem;color:#6c7fa6;
+  border-top:1px solid var(--line);padding-top:.6rem}
+.ok{color:#4ade80}
+footer{margin-top:2.6rem;font-family:var(--mono);font-size:.75rem;color:#6c7fa6;
+  border-top:1px solid var(--line);padding-top:1.2rem}
+code{color:var(--blue-lt)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>LeftyDevKit — Lab</h1>
+  <div class="tag">system.reclaim() · experiments, not production</div>
+  <p class="lede">Six verified demo pages. Nothing here touches the live site — these are
+  candidates for the hero and for future builds. Every page logs a verification signal to the
+  browser console.</p>
+
+  <p style="margin:-1.4rem 0 2.4rem"><a href="/index.html"
+    style="color:var(--blue-lt);text-decoration:none;font-family:var(--mono);font-size:.8rem">&larr; back to leftydevkit</a></p>
+
+    <a class="card" href="/lab/particle-page.html">
+      <div class="n">06 · PARTICLE PAGE</div>
+      <h2>The page IS the particles</h2>
+      <p class="d">The entire site rendered as one particle cloud — section titles, icons and
+      all. Two scroll modes: <b>build</b> (each section assembles from scattered particles as
+      you scroll into it, holds, then dissolves) and <b>morph</b> (smooth blend between
+      sections). Toggle in the HUD. 36,000 particles, ortho camera so it reads like type.</p>
+      <div class="meta">6 sections · 36k particles · 2 modes · <span class="ok">verified</span> ·
+      console <code>PARTICLE_PAGE</code></div>
+    </a>
+
+    <a class="card" href="/lab/styles.html">
+      <div class="n">05 · STYLE</div>
+      <h2>Style reel — visual treatments</h2>
+      <p class="d">Twelve actual designs you can look at: kinetic wordmark, RISO misregister,
+      infinite ticker, bento grid, cursor-spotlight cards, halftone panel, terminal boot,
+      scroll counter, sibling-index stagger, conic border, split-flap, brutalist CTA.
+      Plain CSS + ~40 lines of JS, no libraries.</p>
+      <div class="meta">12/12 sections · 0 JS errors · <span class="ok">verified</span> ·
+      console <code>STYLEREEL</code></div>
+    </a>
+    <a class="card" href="/lab/particle-image.html">
+      <div class="n">01 · PARTICLES</div>
+      <h2>Particle image morphing</h2>
+      <p class="d">Six shapes built from real brand assets and site geometry — the fist, the
+      courthouse, a dev at a desk, a picket line, the logo, and <code>reclaim()</code> as text.
+      Every particle's home is a pixel of an actual PNG. Drag the cursor to scatter them.</p>
+      <div class="meta">26,000 particles · ~61fps · <span class="ok">verified</span> ·
+      console <code>PARTICLE_IMG</code></div>
+    </a>
+
+    <a class="card" href="/lab/reel3d.html">
+      <div class="n">02 · REAL 3D</div>
+      <h2>3D reel — WebGPU + TSL</h2>
+      <p class="d">Eight actual 3D scenes on three r185: a 65k-particle GPU compute swarm,
+      4,096 instanced cubes, a holographic fresnel shell, real refractive glass, volumetric
+      beams, and two pure-CSS 3D scenes. Drag inside any scene to orbit it.</p>
+      <div class="meta">8/8 scenes · WebGPU backend · <span class="ok">verified</span> ·
+      console <code>REEL3D_SUMMARY</code></div>
+    </a>
+
+    <a class="card" href="/lab/effects.html">
+      <div class="n">03 · SHADERS</div>
+      <h2>Shader effects reel</h2>
+      <p class="d">Eight raw-WebGL fragment shaders, no libraries: curl-noise flow, raymarched
+      metaballs, burning dissolve, liquid refraction, light shafts, halftone protest-print,
+      signal glitch, and a wave grid. All mouse-interactive.</p>
+      <div class="meta">8/8 compiled · 60fps · <span class="ok">verified</span> ·
+      console <code>FXREEL</code></div>
+    </a>
+
+    <a class="card" href="/lab/index.html">
+      <div class="n">04 · CSS</div>
+      <h2>Modern CSS techniques</h2>
+      <p class="d">Ten 2026-baseline CSS features with live support badges — scroll-driven
+      animations, <code>@property</code>, JS-free carousels, anchor positioning,
+      <code>corner-shape</code>, scroll-state queries, subgrid, view transitions.</p>
+      <div class="meta">10/10 supported in Chrome 150 · <span class="ok">verified</span> ·
+      console <code>LDKLAB_SUPPORT</code></div>
+    </a>
+  </div>
+
+  <footer>
+    Served from the project root so <code>../assets/*.png</code> resolves —
+    <code>cd ~/Projects/leftydevkit-3d &amp;&amp; python -m http.server 8912 --bind 127.0.0.1</code><br>
+    Recipes saved in skill <code>modern-css-2026</code> · see
+    <code>references/particle-morphing.md</code> and <code>references/3d-catalog.md</code>.
+  </footer>
+</div>
+</body>
+</html>

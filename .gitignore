@@ -1,4 +1,6 @@
 index.html.bak
-lab/
 *.bak
 __pycache__/
+lab/*
+!lab/lab.html
+!lab/particle-page.html

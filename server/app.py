@@ -22,7 +22,12 @@ from tracker import server as ledger_mod   # vendored ledger module (has .app)
 L = ledger_mod.app                            # the ledger Flask app
 
 ROOT = pathlib.Path(__file__).resolve().parent
-SITE = ROOT.parent                          # leftydevkit-3d repo root (index.html here)
+# The 3D site (index.html + assets) lives next to app.py in the container (/app),
+# but one level up in the local repo (server/ → repo root). Detect whichever works.
+if (ROOT / "index.html").is_file():
+    SITE = ROOT
+else:
+    SITE = ROOT.parent
 WEB = ROOT / "web"                          # ledger explorer (tracker web/)
 
 app = Flask(__name__, static_folder=None)

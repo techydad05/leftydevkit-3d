@@ -1,6 +1,12 @@
 index.html.bak
 *.bak
 __pycache__/
+*.pyc
+server/.venv/
+server/.venv/**/
 lab/*
 !lab/lab.html
 !lab/particle-page.html
+*.log
+*.db-shm
+*.db-wal

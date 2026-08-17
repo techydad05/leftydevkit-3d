@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Corruption Ledger — LeftyDevKit</title>
+<style>
+:root{
+  --bg:#0a0f1a; --panel:#111a2b; --line:#1e2d45; --ink:#e8eefc; --dim:#8fa3c4;
+  --blue:#2f6feb; --blue-2:#5a9bff; --flow:#5a9bff; --public:#f0a341; --ok:#3ec98a;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:15px/1.55 ui-sans-serif,system-ui,"Segoe UI",Roboto,sans-serif}
+a{color:var(--blue-2)}
+.wrap{max-width:1180px;margin:0 auto;padding:0 20px}
+header{border-bottom:1px solid var(--line);background:linear-gradient(180deg,#0d1524,#0a0f1a)}
+.brand{display:flex;align-items:center;gap:10px;padding:16px 0;font-weight:700;letter-spacing:.2px}
+.brand .fist{width:26px;height:26px;border-radius:6px;background:var(--blue);
+  display:grid;place-items:center;font-size:15px}
+.brand small{color:var(--dim);font-weight:500}
+.hero{padding:34px 0 26px}
+.big{font-size:clamp(38px,7vw,68px);font-weight:800;letter-spacing:-2px;line-height:1;
+  font-variant-numeric:tabular-nums}
+.big .cur{color:var(--dim);font-size:.5em;vertical-align:super;margin-right:4px}
+.sub{color:var(--dim);margin-top:8px;max-width:70ch}
+.ledgers{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin:22px 0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.card .k{font-size:12px;text-transform:uppercase;letter-spacing:.09em;color:var(--dim)}
+.card .v{font-size:26px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums}
+.card.flow .v{color:var(--flow)} .card.public .v{color:var(--public)}
+.card .n{font-size:12px;color:var(--dim);margin-top:6px}
+.bar{height:10px;border-radius:6px;overflow:hidden;display:flex;background:#0c1424;
+  border:1px solid var(--line);margin:6px 0 20px}
+.bar i{display:block;height:100%}
+.controls{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0}
+input,select{background:#0c1424;border:1px solid var(--line);color:var(--ink);
+  padding:9px 12px;border-radius:9px;font-size:14px}
+input{flex:1;min-width:220px}
+.inc{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--line);
+  border-radius:11px;padding:15px 17px;margin-bottom:11px}
+.inc.money{border-left-color:var(--blue)}
+.inc h3{margin:0 0 6px;font-size:16.5px;line-height:1.35}
+.meta{display:flex;gap:9px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--dim)}
+.tag{background:#16233a;border:1px solid var(--line);padding:2px 8px;border-radius:20px}
+.tag.v{color:var(--ok);border-color:#1c4b38}
+.tag.u{color:var(--public);border-color:#4a3a1c}
+.amt{font-weight:700;font-variant-numeric:tabular-nums}
+.amt.f{color:var(--flow)} .amt.p{color:var(--public)}
+.sum{color:#c3cfe6;margin:9px 0;font-size:14px}
+.basis{font-size:12.5px;color:var(--dim);border-left:2px solid var(--line);
+  padding:5px 0 5px 10px;margin:8px 0;font-style:italic}
+.cites{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}
+.cite{font-size:12px;background:#0c1424;border:1px solid var(--line);
+  padding:3px 9px;border-radius:7px;text-decoration:none}
+.cite.t0{border-color:#1c4b38;color:var(--ok)}
+.foot{color:var(--dim);font-size:13px;padding:26px 0;border-top:1px solid var(--line);margin-top:26px}
+.count{color:var(--dim);font-size:13px;margin:12px 0}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <div class="brand"><span class="fist">✊</span> LeftyDevKit
+    <small>/ Corruption Ledger</small></div>
+</div></header>
+
+<div class="wrap">
+  <section class="hero">
+    <div class="big"><span class="cur">$</span><span id="combined">—</span></div>
+    <div class="sub" id="heroSub">Loading…</div>
+    <div class="ledgers">
+      <div class="card flow"><div class="k">To Trump &amp; family</div>
+        <div class="v" id="flow">—</div><div class="n">Money that landed with them</div></div>
+      <div class="card public"><div class="k">Public money</div>
+        <div class="v" id="public">—</div><div class="n">Taxpayer dollars committed or misdirected</div></div>
+      <div class="card"><div class="k">Verified incidents</div>
+        <div class="v" id="inc">—</div><div class="n" id="window">—</div></div>
+      <div class="card"><div class="k">Citations</div>
+        <div class="v" id="cits">—</div><div class="n">Every dollar traceable</div></div>
+    </div>
+    <div class="bar"><i id="barF" style="background:var(--flow)"></i>
+                     <i id="barP" style="background:var(--public)"></i></div>
+  </section>
+
+  <div class="controls">
+    <input id="q" placeholder="Search incidents, people, companies…">
+    <select id="cat"><option value="all">All categories</option></select>
+    <select id="ledger">
+      <option value="all">All incidents</option>
+      <option value="money">Has a dollar figure</option>
+      <option value="flow">Money to Trump</option>
+      <option value="public">Public money</option>
+    </select>
+    <select id="sort">
+      <option value="date">Newest first</option>
+      <option value="date_asc">Oldest first</option>
+      <option value="amount">Biggest dollar</option>
+      <option value="confidence">Most confident</option>
+    </select>
+    <select id="status">
+      <option value="verified">Verified only</option>
+      <option value="all">Include unverified</option>
+      <option value="unverified">Unverified queue</option>
+    </select>
+  </div>
+  <div class="count" id="count"></div>
+  <div id="list"></div>
+
+  <div class="foot">
+    Every incident carries at least one citation. Figures marked
+    <b>tier 0</b> come from primary government documents — including Trump's own
+    federal financial disclosure filed with the Office of Government Ethics.
+    Dollars are kept in separate ledgers and never blindly summed: money that
+    reached the Trump family is tracked apart from public money steered to third
+    parties. <span id="gen"></span>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const money = n => !n ? "$0" :
+  n >= 1e9 ? "$" + (n/1e9).toFixed(2).replace(/\.?0+$/,"") + "B" :
+  n >= 1e6 ? "$" + (n/1e6).toFixed(1).replace(/\.0$/,"") + "M" :
+  "$" + n.toLocaleString();
+const full = n => "$" + Math.round(n).toLocaleString();
+
+function animate(el, to){
+  const dur = 900, t0 = performance.now();
+  (function step(t){
+    const p = Math.min((t-t0)/dur, 1), e = 1-Math.pow(1-p,3);
+    el.textContent = Math.round(to*e).toLocaleString();
+    if (p < 1) requestAnimationFrame(step);
+  })(t0);
+}
+
+async function loadStats(){
+  const s = await (await fetch("/api/stats")).json();
+  animate($("#combined"), s.combined);
+  $("#flow").textContent   = money(s.flow_to_trump);
+  $("#public").textContent = money(s.cost_to_public);
+  $("#inc").textContent    = s.verified_incidents;
+  $("#cits").textContent   = s.citation_count;
+  $("#window").textContent = (s.first_date||"") + " → " + (s.last_date||"");
+  $("#heroSub").innerHTML =
+    "<b>" + full(s.combined) + "</b> in documented corruption across <b>" +
+    s.verified_incidents + "</b> verified incidents since " + (s.first_date||"") +
+    ". " + s.unverified_pending + " more awaiting verification.";
+  const tot = s.flow_to_trump + s.cost_to_public || 1;
+  $("#barF").style.width = (s.flow_to_trump/tot*100) + "%";
+  $("#barP").style.width = (s.cost_to_public/tot*100) + "%";
+  const cat = $("#cat");
+  Object.keys(s.by_category).forEach(k => {
+    const o = document.createElement("option");
+    o.value = k; o.textContent = k + " (" + s.by_category[k] + ")";
+    cat.appendChild(o);
+  });
+}
+
+async function loadList(){
+  const p = new URLSearchParams({
+    q: $("#q").value, category: $("#cat").value, ledger: $("#ledger").value,
+    sort: $("#sort").value, status: $("#status").value, limit: 200 });
+  const d = await (await fetch("/api/incidents?" + p)).json();
+  $("#count").textContent = d.total + " incident" + (d.total===1?"":"s");
+  $("#list").innerHTML = d.incidents.map(i => {
+    const hasMoney = i.flow_to_trump > 0 || i.cost_to_public > 0;
+    const amts = [];
+    if (i.flow_to_trump > 0) amts.push('<span class="amt f">'+money(i.flow_to_trump)+' to Trump</span>');
+    if (i.cost_to_public > 0) amts.push('<span class="amt p">'+money(i.cost_to_public)+' public</span>');
+    return `<article class="inc ${hasMoney?'money':''}">
+      <h3>${esc(i.title)}</h3>
+      <div class="meta">
+        <span class="tag ${i.status==='verified'?'v':'u'}">${i.status}</span>
+        <span>${i.event_date||'undated'}</span>
+        <span class="tag">${i.category||'other'}</span>
+        ${amts.join(" ")}
+        ${i.confidence?`<span>confidence ${i.confidence}%</span>`:''}
+      </div>
+      ${i.summary?`<div class="sum">${esc(i.summary)}</div>`:''}
+      ${i.amount_basis?`<div class="basis">Basis: ${esc(i.amount_basis)}</div>`:''}
+      <div class="cites">${(i.citations||[]).map(c =>
+        `<a class="cite t${c.tier}" target="_blank" rel="noopener" href="${c.url}">
+          ${c.tier===0?'📄 ':''}${esc(c.publisher||'source')}</a>`).join("")}</div>
+    </article>`;
+  }).join("") || "<p style='color:var(--dim)'>No incidents match.</p>";
+}
+
+function esc(s){ return (s||"").replace(/[&<>"]/g, c =>
+  ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+let t; ["q","cat","ledger","sort","status"].forEach(id =>
+  $("#"+id).addEventListener("input", () => { clearTimeout(t); t = setTimeout(loadList, 220); }));
+
+loadStats(); loadList();
+</script>
+</body>
+</html>

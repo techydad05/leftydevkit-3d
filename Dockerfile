@@ -21,5 +21,5 @@ COPY assets ./assets
 # Rebuild the ledger export inside the image (uses the shipped DB snapshot).
 RUN cd /app && python -c "import tracker.export as e; e.run()" || true
 
-EXPOSE 8000
+EXPOSE 3000
 CMD ["python", "app.py"]

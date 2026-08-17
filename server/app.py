@@ -82,4 +82,5 @@ def site_other(p):
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000, debug=False)
+    # Coolify routes this app to :3000 (Traefik label). Listen there.
+    app.run(host="0.0.0.0", port=int(__import__("os").environ.get("PORT", 3000)), debug=False)
